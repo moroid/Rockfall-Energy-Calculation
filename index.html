@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>落石エネルギー計算ツール</title>
+    <!-- Tailwind CSSの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* カスタムスタイル */
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .result-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease-in-out;
+        }
+        .result-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #1d4ed8; /* blue-700 */
+        }
+        .result-unit {
+            font-size: 1.125rem;
+            margin-left: 0.5rem;
+            color: #6b7280; /* gray-500 */
+        }
+        input[type="number"]:disabled {
+            background-color: #e5e7eb; /* gray-200 */
+            cursor: not-allowed;
+        }
+        /* グラフ用のスタイル */
+        .chart-bar {
+            background: linear-gradient(90deg, rgba(59,130,246,0.5) 0%, rgba(59,130,246,0.8) 100%);
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">落石エネルギー計算ツール</h1>
+            <p class="mt-2 text-gray-600">入力条件に基づき落石の運動エネルギーを自動計算します。</p>
+        </header>
+
+        <div class="grid grid-cols-1 gap-8">
+            <!-- 入力フォーム -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-2">入力条件</h2>
+                <!-- エラーメッセージ表示領域 -->
+                <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert"></div>
+                <!-- フォーム内容 -->
+                <div id="input-form">
+                    <!-- 1. 斜面情報 -->
+                    <fieldset class="mb-6">
+                        <legend class="font-bold text-lg mb-2">1. 斜面情報</legend>
+                        <div class="space-y-2">
+                            <label class="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                <div class="flex items-center">
+                                    <input type="radio" name="slopeInfo" value="length" class="form-radio" checked>
+                                    <span class="ml-3">斜面長と勾配</span>
+                                </div>
+                                <div class="flex items-center gap-2 mt-2 md:mt-0">
+                                    L <input type="number" id="slopeLength" class="w-24 form-input rounded-md border-gray-300 shadow-sm" placeholder="m">
+                                    θ <input type="number" id="slopeAngleL" class="w-24 form-input rounded-md border-gray-300 shadow-sm" placeholder="°">
+                                </div>
+                            </label>
+                            <label class="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                 <div class="flex items-center">
+                                    <input type="radio" name="slopeInfo" value="height" class="form-radio">
+                                    <span class="ml-3">高さと勾配</span>
+                                </div>
+                                <div class="flex items-center gap-2 mt-2 md:mt-0">
+                                    H <input type="number" id="slopeHeight" class="w-24 form-input rounded-md border-gray-300 shadow-sm" placeholder="m" disabled>
+                                    θ <input type="number" id="slopeAngleH" class="w-24 form-input rounded-md border-gray-300 shadow-sm" placeholder="°" disabled>
+                                </div>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <!-- 2. 落石の岩種 -->
+                    <fieldset class="mb-6">
+                        <legend class="font-bold text-lg mb-2">2. 落石の岩種</legend>
+                        <select id="rockType" class="w-full form-select rounded-md border-gray-300 shadow-sm"></select>
+                    </fieldset>
+                    <!-- 3. 落石の形状と寸法 -->
+                    <fieldset class="mb-6">
+                        <legend class="font-bold text-lg mb-2">3. 落石の形状と寸法 (m)</legend>
+                        <div class="space-y-2">
+                            <label class="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                <div class="flex items-center">
+                                    <input type="radio" name="rockShape" value="cuboid" class="form-radio" checked>
+                                    <span class="ml-3">直方体</span>
+                                </div>
+                                <div id="cuboid-inputs" class="flex items-center gap-2 mt-2 md:mt-0">
+                                    a <input type="number" class="w-16 form-input rounded-md border-gray-300 shadow-sm" placeholder="m">
+                                    b <input type="number" class="w-16 form-input rounded-md border-gray-300 shadow-sm" placeholder="m">
+                                    c <input type="number" class="w-16 form-input rounded-md border-gray-300 shadow-sm" placeholder="m">
+                                </div>
+                            </label>
+                            <label class="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                <div class="flex items-center">
+                                    <input type="radio" name="rockShape" value="rounded" class="form-radio">
+                                    <span class="ml-3">3辺の平均を3乗</span>
+                                </div>
+                                 <div id="rounded-inputs" class="flex items-center gap-2 mt-2 md:mt-0">
+                                    a <input type="number" class="w-16 form-input rounded-md border-gray-300 shadow-sm" placeholder="m" disabled>
+                                    b <input type="number" class="w-16 form-input rounded-md border-gray-300 shadow-sm" placeholder="m" disabled>
+                                    c <input type="number" class="w-16 form-input rounded-md border-gray-300 shadow-sm" placeholder="m" disabled>
+                                </div>
+                            </label>
+                            <label class="flex flex-col md:flex-row md:items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                <div class="flex items-center">
+                                    <input type="radio" name="rockShape" value="sphere" class="form-radio">
+                                    <span class="ml-3">球体</span>
+                                </div>
+                                <div id="sphere-inputs" class="flex items-center gap-2 mt-2 md:mt-0">
+                                    直径 d <input type="number" class="w-20 form-input rounded-md border-gray-300 shadow-sm" placeholder="m" disabled>
+                                </div>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <!-- 4. 等価摩擦係数 -->
+                    <fieldset class="mb-6">
+                        <legend class="font-bold text-lg mb-2">4. 等価摩擦係数 (μ)</legend>
+                        <div id="friction-options" class="space-y-2"></div>
+                    </fieldset>
+                    <!-- 5. 詳細設定 -->
+                    <fieldset class="pb-4">
+                        <legend class="font-bold text-lg mb-2">5. 詳細設定 (任意)</legend>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="rotationalEnergy" class="block text-sm font-medium text-gray-700">回転エネルギー係数 (c)</label>
+                                <input type="number" id="rotationalEnergy" value="0.2" class="mt-1 w-full form-input rounded-md border-gray-300 shadow-sm">
+                            </div>
+                            <div>
+                                <label for="initialVelocity" class="block text-sm font-medium text-gray-700">初速度 (v₀) [m/s]</label>
+                                <input type="number" id="initialVelocity" value="0" class="mt-1 w-full form-input rounded-md border-gray-300 shadow-sm">
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <!-- 結果表示 -->
+            <div class="space-y-8">
+                <div class="result-card">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">計算結果</h2>
+                    <div class="text-center mb-6">
+                        <h3 class="text-lg font-semibold text-gray-600">全運動エネルギー (Et)</h3>
+                        <p class="result-value"><span id="result-et">0</span><span class="result-unit">kJ</span></p>
+                    </div>
+                    <div class="pt-6 border-t">
+                        <h4 class="text-md font-semibold text-gray-500 mb-2 text-center">--- 参考値 ---</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center text-sm">
+                            <div><p class="font-bold">体積 (V)</p><p><span id="result-v">0</span> m³</p></div>
+                            <div><p class="font-bold">質量 (m)</p><p><span id="result-m">0</span> t</p></div>
+                            <div><p class="font-bold">速度 (v)</p><p><span id="result-v-final">0</span> m/s</p></div>
+                            <div><p class="font-bold">並進エネルギー (E)</p><p><span id="result-e">0</span> kJ</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- エネルギー比較グラフ -->
+                <div class="result-card">
+                    <h2 class="text-2xl font-bold mb-4 border-b pb-2">工法別エネルギー吸収量との比較</h2>
+                    <div id="chart-container" class="mt-6">
+                        <!-- グラフがここに動的に生成される -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- データ定義 ---
+        const rockTypes = [
+            { group: '堆積岩', name: '砂岩', density: 2.6 }, { group: '堆積岩', name: '粘板岩', density: 2.6 }, { group: '堆積岩', name: '泥岩', density: 2.4 }, { group: '火山性堆積岩', name: '凝灰岩', density: 2.3 }, { group: '火山性堆積岩', name: '凝灰角礫岩', density: 1.9 }, { group: '深成岩', name: '花崗岩', density: 2.6 }, { group: '深成岩', name: '閃緑岩', density: 2.5 }, { group: '深成岩', name: '斑れい岩', density: 2.8 }, { group: '半深成岩', name: 'ひん岩', density: 2.7 }, { group: '半深成岩', name: '石英斑岩', density: 2.7 }, { group: '火山岩', name: '流紋岩', density: 2.6 }, { group: '火山岩', name: '安山岩', density: 2.3 }, { group: '火山岩', name: '玄武岩', density: 2.9 }, { group: '火山岩', name: '輝緑岩', density: 2.8 },
+        ];
+        const frictionCoefficients = [
+            { value: 0.05, label: 'A (μ=0.05)', description: '硬岩、丸状・凹凸小、立木なし' }, { value: 0.15, label: 'B (μ=0.15)', description: '軟岩、丸状～角状・凹凸中～大、立木なし' }, { value: 0.25, label: 'C (μ=0.25)', description: '土砂・崖錐、丸状～角状・凹凸小～中、立木なし' }, { value: 0.35, label: 'D (μ=0.35)', description: '崖錐、巨礫まじり崖錐、角状・凹凸中～大、立木なし～あり' },
+        ];
+        const protectionMethods = [
+            { name: '落石防護柵 (高エネ)', min: 40, max: 200 }, { name: '落石防護柵', min: 30, max: 500 }, { name: '落石防護網 (高エネ)', min: 20, max: 300 }, { name: '落石防護擁壁', min: 100, max: 500 }, { name: '落石防護土堤', min: 500, max: 4000 }, { name: 'ロックシェッド', min: 30, max: 3000 }, { name: '落石止柵', min: 39, max: 98 }, { name: '落石止柵 (ラムダ型)', min: 30, max: 80 }, { name: '落石止擁壁', min: 120, max: 750 }, { name: '落石覆 (コンクリート造)', min: 200, max: 3000 }, { name: 'リングネット柵', min: 300, max: 1500 },
+        ];
+
+        // --- DOM要素 ---
+        const DOMElements = {
+            inputForm: document.getElementById('input-form'),
+            slopeInfoRadios: document.querySelectorAll('input[name="slopeInfo"]'), slopeLengthInput: document.getElementById('slopeLength'), slopeAngleLInput: document.getElementById('slopeAngleL'), slopeHeightInput: document.getElementById('slopeHeight'), slopeAngleHInput: document.getElementById('slopeAngleH'), rockTypeSelect: document.getElementById('rockType'), rockShapeRadios: document.querySelectorAll('input[name="rockShape"]'), cuboidInputs: document.querySelectorAll('#cuboid-inputs input'), roundedInputs: document.querySelectorAll('#rounded-inputs input'), sphereInput: document.querySelector('#sphere-inputs input'), frictionOptionsContainer: document.getElementById('friction-options'), rotationalEnergyInput: document.getElementById('rotationalEnergy'), initialVelocityInput: document.getElementById('initialVelocity'), errorMessage: document.getElementById('error-message'), results: { et: document.getElementById('result-et'), v: document.getElementById('result-v'), m: document.getElementById('result-m'), vFinal: document.getElementById('result-v-final'), e: document.getElementById('result-e'), }, chartContainer: document.getElementById('chart-container'),
+        };
+
+        // --- 初期化処理 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            populateForms();
+            setupEventListeners();
+            createChart();
+        });
+
+        function populateForms() {
+            let currentGroup = "";
+            rockTypes.forEach(rock => {
+                if (rock.group !== currentGroup) {
+                    currentGroup = rock.group;
+                    const optgroup = document.createElement('optgroup');
+                    optgroup.label = currentGroup;
+                    DOMElements.rockTypeSelect.appendChild(optgroup);
+                }
+                const option = document.createElement('option');
+                option.value = rock.density;
+                option.textContent = `${rock.name} (${rock.density} t/m³)`;
+                DOMElements.rockTypeSelect.querySelector(`optgroup[label="${currentGroup}"]`).appendChild(option);
+            });
+            frictionCoefficients.forEach((friction, index) => {
+                const label = document.createElement('label');
+                label.className = 'flex items-start p-3 bg-gray-50 rounded-lg border';
+                const radio = document.createElement('input');
+                radio.type = 'radio'; radio.name = 'friction'; radio.value = friction.value; radio.className = 'form-radio mt-1';
+                if (index === 0) radio.checked = true;
+                const textDiv = document.createElement('div');
+                textDiv.className = 'ml-3';
+                const labelText = document.createElement('span');
+                labelText.className = 'font-semibold'; labelText.textContent = friction.label;
+                const descText = document.createElement('p');
+                descText.className = 'text-sm text-gray-600'; descText.textContent = friction.description;
+                textDiv.appendChild(labelText); textDiv.appendChild(descText); label.appendChild(radio); label.appendChild(textDiv);
+                DOMElements.frictionOptionsContainer.appendChild(label);
+            });
+        }
+
+        // --- イベントリスナー設定 ---
+        function setupEventListeners() {
+            DOMElements.slopeInfoRadios.forEach(radio => radio.addEventListener('change', handleSlopeInfoChange));
+            DOMElements.rockShapeRadios.forEach(radio => radio.addEventListener('change', handleRockShapeChange));
+            DOMElements.inputForm.addEventListener('input', onCalculate);
+            DOMElements.inputForm.addEventListener('change', onCalculate);
+        }
+
+        function handleSlopeInfoChange(e) {
+            const isLength = e.target.value === 'length';
+            DOMElements.slopeLengthInput.disabled = !isLength; DOMElements.slopeAngleLInput.disabled = !isLength;
+            DOMElements.slopeHeightInput.disabled = isLength; DOMElements.slopeAngleHInput.disabled = isLength;
+            onCalculate(); // ラジオボタン変更時も再計算
+        }
+
+        function handleRockShapeChange(e) {
+            const shape = e.target.value;
+            DOMElements.cuboidInputs.forEach(input => input.disabled = (shape !== 'cuboid'));
+            DOMElements.roundedInputs.forEach(input => input.disabled = (shape !== 'rounded'));
+            DOMElements.sphereInput.disabled = (shape !== 'sphere');
+            onCalculate(); // ラジオボタン変更時も再計算
+        }
+
+        // --- 計算と表示 ---
+        function onCalculate() {
+            hideError();
+            try {
+                const inputs = getAndValidateInputs();
+                const results = performCalculations(inputs);
+                displayResults(results);
+                updateChartIndicator(results.Et);
+            } catch (error) {
+                // 未入力などによるエラー時は結果をリセット
+                Object.values(DOMElements.results).forEach(el => el.textContent = '0');
+                updateChartIndicator(0);
+                // console.error(error); // デバッグ用
+            }
+        }
+
+        function getAndValidateInputs() {
+            const inputs = {}; let L, theta;
+            const slopeInfoType = document.querySelector('input[name="slopeInfo"]:checked').value;
+            if (slopeInfoType === 'length') {
+                L = parseFloat(DOMElements.slopeLengthInput.value); theta = parseFloat(DOMElements.slopeAngleLInput.value);
+                if (isNaN(L) || isNaN(theta)) throw new Error('Incomplete slope info');
+            } else {
+                const H = parseFloat(DOMElements.slopeHeightInput.value); theta = parseFloat(DOMElements.slopeAngleHInput.value);
+                if (isNaN(H) || isNaN(theta)) throw new Error('Incomplete slope info');
+                if (theta <= 0 || theta >= 90) throw new Error('Invalid angle');
+                L = H / Math.sin(theta * Math.PI / 180);
+            }
+            if (L <= 0 || theta <= 0 || theta >= 90) throw new Error('Invalid slope values');
+            
+            const theta_rad = theta * Math.PI / 180;
+            const calculatedH = L * Math.sin(theta_rad);
+            inputs.L = (calculatedH > 40) ? 40 / Math.sin(theta_rad) : L;
+            inputs.theta = theta;
+            inputs.rho = parseFloat(DOMElements.rockTypeSelect.value);
+            const rockShape = document.querySelector('input[name="rockShape"]:checked').value;
+            let V;
+            if (rockShape === 'cuboid') {
+                const [a, b, c] = Array.from(DOMElements.cuboidInputs).map(i => parseFloat(i.value));
+                if ([a, b, c].some(isNaN)) throw new Error('Incomplete cuboid dimensions');
+                if (a <= 0 || b <= 0 || c <= 0) throw new Error('Invalid cuboid dimensions');
+                V = a * b * c;
+            } else if (rockShape === 'rounded') {
+                const [a, b, c] = Array.from(DOMElements.roundedInputs).map(i => parseFloat(i.value));
+                if ([a, b, c].some(isNaN)) throw new Error('Incomplete rounded dimensions');
+                if (a <= 0 || b <= 0 || c <= 0) throw new Error('Invalid rounded dimensions');
+                const d_avg = (a + b + c) / 3; V = Math.pow(d_avg, 3);
+            } else { // sphere
+                const d = parseFloat(DOMElements.sphereInput.value);
+                if (isNaN(d)) throw new Error('Incomplete sphere dimensions');
+                if (d <= 0) throw new Error('Invalid sphere dimensions');
+                V = (4 / 3) * Math.PI * Math.pow(d / 2, 3);
+            }
+            inputs.V = V;
+            inputs.mu = parseFloat(document.querySelector('input[name="friction"]:checked').value);
+            inputs.c = parseFloat(DOMElements.rotationalEnergyInput.value);
+            inputs.v0 = parseFloat(DOMElements.initialVelocityInput.value);
+            if (isNaN(inputs.c) || isNaN(inputs.v0)) throw new Error('Invalid advanced settings');
+            return inputs;
+        }
+
+        function performCalculations(inputs) {
+            const { L, theta, rho, V, mu, c, v0 } = inputs; const g = 9.8;
+            const m_ton = rho * V; const m_kg = m_ton * 1000;
+            const theta_rad = theta * Math.PI / 180;
+            const a = g * (Math.sin(theta_rad) - mu * Math.cos(theta_rad));
+            if (a < 0) {
+                const initial_E_joule = 0.5 * m_kg * Math.pow(v0, 2);
+                const initial_E_kj = initial_E_joule / 1000;
+                return { L, theta, V, m: m_ton, v: v0, E: initial_E_kj, Et: initial_E_kj * (1 + c) };
+            }
+            const v_squared = Math.pow(v0, 2) + 2 * a * L;
+            const v = v_squared > 0 ? Math.sqrt(v_squared) : 0;
+            const E_joule = 0.5 * m_kg * Math.pow(v, 2);
+            const E_kj = E_joule / 1000;
+            const Et_kj = E_kj * (1 + c);
+            return { L, theta, V, m: m_ton, v, E: E_kj, Et: Et_kj };
+        }
+
+        function displayResults(results) {
+            DOMElements.results.et.textContent = results.Et.toFixed(1);
+            DOMElements.results.v.textContent = results.V.toFixed(2);
+            DOMElements.results.m.textContent = results.m.toFixed(2);
+            DOMElements.results.vFinal.textContent = results.v.toFixed(1);
+            DOMElements.results.e.textContent = results.E.toFixed(1);
+        }
+        
+        function showError(message) {
+            DOMElements.errorMessage.textContent = message;
+            DOMElements.errorMessage.classList.remove('hidden');
+        }
+        function hideError() {
+            DOMElements.errorMessage.classList.add('hidden');
+        }
+
+        // --- グラフ関連 ---
+        const chartMinKj = 10;
+        const chartMaxKj = 5000;
+        const logMin = Math.log10(chartMinKj);
+        const logMax = Math.log10(chartMaxKj);
+
+        function energyToPercent(kj) {
+            if (kj <= chartMinKj) return 0;
+            if (kj >= chartMaxKj) return 100;
+            const logKj = Math.log10(kj);
+            const percent = ((logKj - logMin) / (logMax - logMin)) * 100;
+            return Math.min(100, Math.max(0, percent));
+        }
+
+        function createChart() {
+            const container = DOMElements.chartContainer;
+            container.innerHTML = ''; 
+
+            const chartGrid = document.createElement('div');
+            chartGrid.className = 'grid grid-cols-3 gap-4';
+
+            const namesColumn = document.createElement('div');
+            namesColumn.className = 'space-y-2 text-sm';
+            protectionMethods.forEach(method => {
+                const nameDiv = document.createElement('div');
+                nameDiv.textContent = method.name;
+                nameDiv.className = 'h-6 flex items-center truncate';
+                namesColumn.appendChild(nameDiv);
+            });
+            chartGrid.appendChild(namesColumn);
+
+            const chartAreaColumn = document.createElement('div');
+            chartAreaColumn.className = 'col-span-2';
+
+            const barsAndIndicatorWrapper = document.createElement('div');
+            barsAndIndicatorWrapper.className = 'relative';
+
+            const barsContainer = document.createElement('div');
+            barsContainer.className = 'space-y-2';
+            protectionMethods.forEach(method => {
+                const barWrapper = document.createElement('div');
+                barWrapper.className = 'h-6 bg-gray-200 rounded relative';
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar absolute h-full';
+                const left = energyToPercent(method.min);
+                const right = energyToPercent(method.max);
+                bar.style.left = `${left}%`;
+                bar.style.width = `${right - left}%`;
+                barWrapper.appendChild(bar);
+                barsContainer.appendChild(barWrapper);
+            });
+            barsAndIndicatorWrapper.appendChild(barsContainer);
+
+            const indicator = document.createElement('div');
+            indicator.id = 'chart-indicator';
+            indicator.className = 'absolute top-0 w-0.5 h-full bg-red-500 transition-all duration-300 ease-out';
+            indicator.style.left = '0%';
+            indicator.style.display = 'none';
+            indicator.style.pointerEvents = 'none'; 
+            barsAndIndicatorWrapper.appendChild(indicator);
+            
+            chartAreaColumn.appendChild(barsAndIndicatorWrapper);
+
+            const axisContainer = document.createElement('div');
+            axisContainer.className = 'relative h-6 mt-2 border-t border-gray-300';
+            const axisLabels = [10, 50, 100, 500, 1000, 5000];
+            axisLabels.forEach((val, index) => {
+                const label = document.createElement('div');
+                label.className = 'absolute text-xs text-gray-500 top-1';
+                label.textContent = val;
+                label.style.left = `${energyToPercent(val)}%`;
+
+                if (index === 0) {
+                    label.classList.add('translate-x-0');
+                } else if (index === axisLabels.length - 1) {
+                    label.classList.add('-translate-x-full');
+                } else {
+                    label.classList.add('-translate-x-1/2');
+                }
+                axisContainer.appendChild(label);
+            });
+            chartAreaColumn.appendChild(axisContainer);
+
+            const axisUnit = document.createElement('div');
+            axisUnit.className = 'text-right text-xs text-gray-500';
+            axisUnit.textContent = 'エネルギー吸収量 (kJ) ※対数スケール';
+            chartAreaColumn.appendChild(axisUnit);
+
+            chartGrid.appendChild(chartAreaColumn);
+            container.appendChild(chartGrid);
+        }
+
+        function updateChartIndicator(energyKj) {
+            const indicator = document.getElementById('chart-indicator');
+            if (!indicator) return;
+
+            if (energyKj > 0) {
+                const percent = energyToPercent(energyKj);
+                indicator.style.left = `${percent}%`;
+                indicator.style.display = 'block';
+            } else {
+                indicator.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
